@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#0f172a" />
+<title>Masaniello Trading App</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --border: #334155;
+    --text: #f8fafc;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --win: #22c55e;
+    --loss: #ef4444;
+  }
+  * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { margin: 0; background: var(--bg); color: var(--text); padding: 18px; }
+  .container { max-width: 1080px; margin: 0 auto; }
+  .header-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  h1 { margin: 0; font-size: 1.5rem; }
+  .subtitle { color: var(--muted); margin: 4px 0 0; font-size: 0.9rem; }
+  .grid-params {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px; background: var(--card); padding: 14px; border-radius: 12px; border: 1px solid var(--border);
+    margin-bottom: 14px;
+  }
+  .param-box label { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .param-box input {
+    width: 100%; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); font-size: 1rem; font-weight: 600;
+  }
+  .summary-bar {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+    gap: 12px; margin-bottom: 14px;
+  }
+  .stat-card { background: var(--card); padding: 13px 15px; border-radius: 12px; border: 1px solid var(--border); }
+  .stat-card .label { font-size: 0.76rem; color: var(--muted); }
+  .stat-card .val { font-size: 1.3rem; font-weight: 700; margin-top: 4px; }
+  .val.accent { color: var(--accent); }
+  .val.win { color: var(--win); }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; align-items: center; }
+  button { padding: 9px 14px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; font-size: 0.88rem; }
+  button:hover { opacity: 0.9; }
+  .btn-copy { background: var(--win); color: #052e16; }
+  .btn-new-cycle { background: var(--accent); color: #0f172a; }
+  .btn-reset { background: #475569; color: #fff; }
+  .btn-preset { background: #334155; color: #e2e8f0; }
+  .btn-csv { background: #1e293b; color: #cbd5e1; border: 1px solid var(--border); }
+  .table-wrap { overflow-x: auto; background: var(--card); border-radius: 12px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; text-align: left; }
+  th, td { padding: 10px 13px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+  th { background: #162033; color: var(--muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; }
+  tr.active-row { background: rgba(56, 189, 248, 0.14); }
+  tr.complete-row { opacity: 0.55; }
+  .wl-group { display: inline-flex; gap: 6px; }
+  .wl-btn {
+    padding: 5px 12px; border-radius: 6px; font-size: 0.82rem; font-weight: 700;
+    background: var(--bg); color: var(--muted); border: 1px solid var(--border);
+  }
+  .wl-btn.selected-w { background: var(--win); color: #052e16; border-color: var(--win); }
+  .wl-btn.selected-l { background: var(--loss); color: #fff; border-color: var(--loss); }
+  .badge { padding: 3px 8px; border-radius: 999px; font-size: 0.74rem; font-weight: 700; }
+  .badge-active { background: rgba(56, 189, 248, 0.2); color: var(--accent); }
+  .badge-win { background: rgba(34, 197, 94, 0.2); color: var(--win); }
+  .badge-stop { background: rgba(239, 68, 68, 0.2); color: var(--loss); }
+  .badge-done { background: rgba(148, 163, 184, 0.2); color: var(--muted); }
+  .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-top: 14px; }
+  canvas { width: 100%; height: 170px; display: block; }
+  .toast {
+    position: fixed; bottom: 20px; right: 20px; background: var(--win); color: #052e16;
+    padding: 10px 16px; border-radius: 8px; font-weight: 700; font-size: 0.88rem;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header-row">
+    <div>
+      <h1>Masaniello Progression App</h1>
+      <p class="subtitle">Click <strong>W</strong> / <strong>L</strong> (or press <strong>W</strong> / <strong>L</strong> keys) to calculate your next stake automatically.</p>
+    </div>
+  </div>
+
+  <div class="grid-params">
+    <div class="param-box"><label>Starting Balance ($)</label><input type="number" id="startBal" value="500" step="1" onchange="resetResults()" /></div>
+    <div class="param-box"><label>Total Trades (N)</label><input type="number" id="totalTrades" value="12" min="1" max="100" onchange="resetResults()" /></div>
+    <div class="param-box"><label>Expected Wins (K)</label><input type="number" id="expectedWins" value="3" min="1" max="100" onchange="resetResults()" /></div>
+    <div class="param-box"><label>Payout Multiplier</label><input type="number" id="payout" value="1.92" step="0.01" min="1.01" onchange="recalc()" /></div>
+    <div class="param-box"><label>Min Broker Stake ($)</label><input type="number" id="minStake" value="0" step="0.01" min="0" onchange="recalc()" /></div>
+  </div>
+
+  <div class="summary-bar">
+    <div class="stat-card"><div class="label">Target Balance</div><div class="val accent" id="targetBal">$506.85</div></div>
+    <div class="stat-card"><div class="label">Target Profit (%)</div><div class="val win" id="targetProfit">+$6.85 (1.37%)</div></div>
+    <div class="stat-card"><div class="label">Current Balance</div><div class="val" id="currBal">$500.00</div></div>
+    <div class="stat-card"><div class="label">Next Recommended Stake</div><div class="val accent" id="nextStakeCard">$5.24</div></div>
+    <div class="stat-card"><div class="label">Wins Left / Trades Left</div><div class="val" id="remStatus">3 / 12</div></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn-copy" onclick="copyStake()">Copy Next Stake</button>
+    <button class="btn-new-cycle" onclick="startNewCycle()">Start New Cycle With Current Balance</button>
+    <button class="btn-reset" onclick="resetResults()">Clear All W/L</button>
+    <button class="btn-preset" onclick="loadExample()">Load Example (L,W,W,L,L,L,W)</button>
+    <button class="btn-csv" onclick="exportCSV()">Download CSV</button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>Start Bal</th><th>Rem. Trades</th><th>Wins Needed</th>
+          <th>Next Stake</th><th>Result</th><th>Profit / Loss</th><th>End Bal</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="tradeBody"></tbody>
+    </table>
+  </div>
+
+  <div class="chart-box">
+    <div style="font-size:0.78rem;color:var(--muted);margin-bottom:8px;text-transform:uppercase;font-weight:600;">Equity Curve</div>
+    <canvas id="equityCanvas" width="1000" height="170"></canvas>
+  </div>
+</div>
+
+<div class="toast" id="toast">Copied!</div>
+
+<script>
+  let results = JSON.parse(localStorage.getItem('masa_results') || '[]');
+  let activeIndex = 0;
+  let currentActiveStake = 0;
+  let tableRowsForCSV = [];
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.innerText = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 1600);
+  }
+
+  function comb(n, k) {
+    if (k < 0 || k > n) return 0;
+    if (k === 0 || k === n) return 1;
+    if (k > n / 2) k = n - k;
+    let res = 1;
+    for (let i = 1; i <= k; i++) res = res * (n - i + 1) / i;
+    return res;
+  }
+
+  function binomPMF(k, n, p) {
+    if (k < 0 || k > n) return 0;
+    return comb(n, k) * Math.pow(p, k) * Math.pow(1 - p, n - k);
+  }
+
+  function binomUpperTail(k, n, p) {
+    if (k <= 0) return 1;
+    if (k > n) return 0;
+    let sum = 0;
+    for (let i = k; i <= n; i++) sum += binomPMF(i, n, p);
+    return sum;
+  }
+
+  function calcTargetBalance(startBal, N, K, payout) {
+    return startBal / binomUpperTail(K, N, 1 / payout);
+  }
+
+  function calcMasanielloStake(bal, remTrades, winsNeeded, payout, minStake) {
+    if (winsNeeded <= 0 || remTrades <= 0 || winsNeeded > remTrades || bal <= 0) return 0;
+    const p = 1 / payout;
+    const n = remTrades - 1;
+    const num = binomPMF(winsNeeded - 1, n, p);
+    const den = binomUpperTail(winsNeeded - 1, n, p) + (payout - 1) * binomUpperTail(winsNeeded, n, p);
+    if (den === 0) return 0;
+    let stake = bal * (num / den);
+    if (minStake > 0 && stake > 0 && stake < minStake) stake = Math.min(bal, minStake);
+    return Math.round(stake * 100) / 100;
+  }
+
+  function toggleResult(idx, val) {
+    results[idx] = (results[idx] === val) ? null : val;
+    saveState();
+    recalc();
+  }
+
+  function copyStake() {
+    navigator.clipboard.writeText(currentActiveStake.toFixed(2));
+    showToast(`Copied $${currentActiveStake.toFixed(2)}`);
+  }
+
+  function saveState() {
+    localStorage.setItem('masa_results', JSON.stringify(results));
+    localStorage.setItem('masa_params', JSON.stringify({
+      startBal: document.getElementById('startBal').value,
+      totalTrades: document.getElementById('totalTrades').value,
+      expectedWins: document.getElementById('expectedWins').value,
+      payout: document.getElementById('payout').value,
+      minStake: document.getElementById('minStake').value
+    }));
+  }
+
+  function resetResults() {
+    const N = parseInt(document.getElementById('totalTrades').value) || 12;
+    results = new Array(N).fill(null);
+    saveState();
+    recalc();
+  }
+
+  function loadExample() {
+    document.getElementById('startBal').value = 500;
+    document.getElementById('totalTrades').value = 12;
+    document.getElementById('expectedWins').value = 3;
+    document.getElementById('payout').value = 1.92;
+    results = ['L', 'W', 'W', 'L', 'L', 'L', 'W', null, null, null, null, null];
+    saveState();
+    recalc();
+  }
+
+  function startNewCycle() {
+    const currText = document.getElementById('currBal').innerText.replace('$', '');
+    document.getElementById('startBal').value = (parseFloat(currText) || 500).toFixed(2);
+    resetResults();
+    showToast('New cycle started!');
+  }
+
+  function exportCSV() {
+    let csv = 'Trade,Start Balance,Remaining Trades,Wins Needed,Next Stake,Result,PnL,End Balance\n';
+    tableRowsForCSV.forEach(r => {
+      csv += `${r.trade},${r.startBal},${r.remTrades},${r.winsNeeded},${r.stake},${r.res || ''},${r.pnl},${r.endBal}\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'masaniello-session.csv';
+    a.click();
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key.toLowerCase() === 'w' && activeIndex !== -1) toggleResult(activeIndex, 'W');
+    if (e.key.toLowerCase() === 'l' && activeIndex !== -1) toggleResult(activeIndex, 'L');
+    if (e.key === 'Backspace' && activeIndex > 0) toggleResult(activeIndex - 1, results[activeIndex - 1]);
+  });
+
+  function recalc() {
+    const startBal = parseFloat(document.getElementById('startBal').value) || 500;
+    const N = Math.max(1, parseInt(document.getElementById('totalTrades').value) || 12);
+    const K = Math.min(N, Math.max(1, parseInt(document.getElementById('expectedWins').value) || 3));
+    const payout = Math.max(1.01, parseFloat(document.getElementById('payout').value) || 1.92);
+    const minStake = Math.max(0, parseFloat(document.getElementById('minStake').value) || 0);
+
+    if (results.length !== N) {
+      const old = [...results];
+      results = new Array(N).fill(null).map((_, i) => old[i] || null);
+    }
+    saveState();
+
+    const targetBal = calcTargetBalance(startBal, N, K, payout);
+    const targetProfit = targetBal - startBal;
+    const targetPct = (targetProfit / startBal) * 100;
+
+    document.getElementById('targetBal').innerText = `$${targetBal.toFixed(2)}`;
+    document.getElementById('targetProfit').innerText = `+$${targetProfit.toFixed(2)} (${targetPct.toFixed(2)}%)`;
+
+    const tbody = document.getElementById('tradeBody');
+    tbody.innerHTML = '';
+    tableRowsForCSV = [];
+
+    let bal = startBal;
+    let winsNeeded = K;
+    let activeRem = N;
+    let foundActive = false;
+    activeIndex = -1;
+    currentActiveStake = 0;
+    const equityPoints = [startBal];
+
+    for (let i = 0; i < N; i++) {
+      const remTrades = N - i;
+      const stake = calcMasanielloStake(bal, remTrades, winsNeeded, payout, minStake);
+      const res = results[i];
+
+      let pnl = 0;
+      if (res === 'W' && stake > 0) pnl = Math.round(stake * (payout - 1) * 100) / 100;
+      if (res === 'L' && stake > 0) pnl = -stake;
+      const endBal = Math.round((bal + pnl) * 100) / 100;
+
+      if (!foundActive && res === null && winsNeeded > 0 && winsNeeded <= remTrades) {
+        currentActiveStake = stake;
+        activeRem = remTrades;
+        activeIndex = i;
+        foundActive = true;
+      }
+
+      tableRowsForCSV.push({
+        trade: i + 1,
+        startBal: bal.toFixed(2),
+        remTrades,
+        winsNeeded,
+        stake: stake.toFixed(2),
+        res,
+        pnl: pnl.toFixed(2),
+        endBal: endBal.toFixed(2)
+      });
+
+      let badge = `<span class="badge badge-active">Pending</span>`;
+      let rowClass = '';
+      if (winsNeeded <= 0) {
+        badge = `<span class="badge badge-win">Target Hit</span>`;
+        rowClass = 'complete-row';
+      } else if (winsNeeded > remTrades) {
+        badge = `<span class="badge badge-stop">Cycle Lost</span>`;
+        rowClass = 'complete-row';
+      } else if (res === 'W' && winsNeeded - 1 === 0) {
+        badge = `<span class="badge badge-win">Win #${K} (Done)</span>`;
+      } else if (res === 'W') {
+        badge = `<span class="badge badge-win">Win</span>`;
+      } else if (res === 'L') {
+        badge = `<span class="badge badge-done">Loss</span>`;
+      } else if (foundActive && activeIndex === i) {
+        rowClass = 'active-row';
+        badge = `<span class="badge badge-active">Next Trade</span>`;
+      }
+
+      const pnlColor = pnl > 0 ? 'var(--win)' : (pnl < 0 ? 'var(--loss)' : 'var(--muted)');
+      const pnlStr = pnl > 0 ? `+$${pnl.toFixed(2)}` : (pnl < 0 ? `-$${Math.abs(pnl).toFixed(2)}` : '$0.00');
+
+      const tr = document.createElement('tr');
+      tr.className = rowClass;
+      tr.innerHTML = `
+        <td><strong>${i + 1}</strong></td>
+        <td>$${bal.toFixed(2)}</td>
+        <td>${remTrades}</td>
+        <td>${winsNeeded}</td>
+        <td><strong style="color:var(--accent)">$${stake.toFixed(2)}</strong></td>
+        <td>
+          <div class="wl-group">
+            <button class="wl-btn ${res === 'W' ? 'selected-w' : ''}" onclick="toggleResult(${i}, 'W')">W</button>
+            <button class="wl-btn ${res === 'L' ? 'selected-l' : ''}" onclick="toggleResult(${i}, 'L')">L</button>
+          </div>
+        </td>
+        <td style="color:${pnlColor};font-weight:600;">${pnlStr}</td>
+        <td><strong>$${endBal.toFixed(2)}</strong></td>
+        <td>${badge}</td>
+      `;
+      tbody.appendChild(tr);
+
+      if (res !== null) equityPoints.push(endBal);
+      bal = endBal;
+      if (res === 'W') winsNeeded = Math.max(0, winsNeeded - 1);
+    }
+
+    document.getElementById('currBal').innerText = `$${bal.toFixed(2)}`;
+    document.getElementById('nextStakeCard').innerText = `$${currentActiveStake.toFixed(2)}`;
+    document.getElementById('remStatus').innerText = `${winsNeeded} / ${foundActive ? activeRem : 0}`;
+    drawChart(equityPoints, startBal, targetBal);
+  }
+
+  function drawChart(points, startBal, targetBal) {
+    const canvas = document.getElementById('equityCanvas');
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const allVals = [...points, startBal, targetBal];
+    const minVal = Math.min(...allVals) * 0.998;
+    const maxVal = Math.max(...allVals) * 1.002;
+    const range = maxVal - minVal || 1;
+    const getY = val => h - 20 - ((val - minVal) / range) * (h - 40);
+    const stepX = (w - 60) / Math.max(1, points.length - 1);
+
+    ctx.strokeStyle = '#22c55e';
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(30, getY(targetBal));
+    ctx.lineTo(w - 30, getY(targetBal));
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    points.forEach((pt, idx) => {
+      const x = 30 + idx * stepX, y = getY(pt);
+      if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    points.forEach((pt, idx) => {
+      const x = 30 + idx * stepX, y = getY(pt);
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  const savedParams = JSON.parse(localStorage.getItem('masa_params') || 'null');
+  if (savedParams) {
+    document.getElementById('startBal').value = savedParams.startBal;
+    document.getElementById('totalTrades').value = savedParams.totalTrades;
+    document.getElementById('expectedWins').value = savedParams.expectedWins;
+    document.getElementById('payout').value = savedParams.payout;
+    document.getElementById('minStake').value = savedParams.minStake;
+  }
+  if (!results || results.length === 0) resetResults(); else recalc();
+</script>
+</body>
+</html>
